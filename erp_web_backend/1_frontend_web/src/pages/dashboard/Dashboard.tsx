@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { get } from '../../services/apiClient';
 import styles from './Dashboard.module.css';
 import { fetchRecentProjects, createProject, updateProject, deleteProject } from '../../services/firestore';
@@ -20,6 +21,7 @@ type RecentItem = {
 };
 
 function DashboardPage() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<Stats | null>(null);
   const [recentOrders, setRecentOrders] = useState<RecentItem[]>([]);
   const [lowStock, setLowStock] = useState<RecentItem[]>([]);
@@ -33,6 +35,8 @@ function DashboardPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<RecentItem | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [quotationModalOpen, setQuotationModalOpen] = useState(false);
+  const [selectedProjectForQuotation, setSelectedProjectForQuotation] = useState<RecentItem | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,7 +95,23 @@ function DashboardPage() {
           <div className={styles.subtitle}>Tổng quan hiệu suất & tồn kho</div>
         </div>
         <div className={styles.actions}>
-          <Button variant="primary">Tạo báo giá</Button>
+          <Button 
+            variant="primary" 
+            onClick={() => {
+              if (projects.length === 0) {
+                alert('Vui lòng tạo dự án trước khi tạo báo giá!');
+                setCreateOpen(true);
+              } else if (projects.length === 1) {
+                // Nếu chỉ có 1 dự án, trực tiếp đi đến trang báo giá
+                navigate(`/projects/${projects[0].id}/quotation`);
+              } else {
+                // Nếu có nhiều dự án, hiển thị modal để chọn
+                setQuotationModalOpen(true);
+              }
+            }}
+          >
+            Tạo báo giá
+          </Button>
           <Button variant="success">Tạo lệnh SX</Button>
           <Button variant="ghost">Xuất báo cáo</Button>
         </div>
@@ -120,8 +140,22 @@ function DashboardPage() {
             <ul className={styles.list}>
               {projects.map((p) => (
                 <li key={p.id} className={styles.row}>
-                  <span className={styles.rowName}>{p.name ?? p.id}</span>
+                  <span 
+                    className={styles.rowName}
+                    style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={() => navigate(`/projects/${p.id}/quotation`)}
+                    title="Nhấp để tạo báo giá"
+                  >
+                    {p.name ?? p.id}
+                  </span>
                   <span className={styles.rowActions}>
+                    <Button
+                      className={styles.smallBtn}
+                      variant="primary"
+                      onClick={() => navigate(`/projects/${p.id}/quotation`)}
+                    >
+                      Báo giá
+                    </Button>
                     <Button
                       className={styles.smallBtn}
                       variant="ghost"
@@ -262,6 +296,66 @@ function DashboardPage() {
         }
       >
         <div>Bạn có chắc muốn xóa dự án này?</div>
+      </Modal>
+
+      {/* Modal chọn dự án để tạo báo giá */}
+      <Modal
+        open={quotationModalOpen}
+        title="Chọn dự án để tạo báo giá"
+        onClose={() => {
+          setQuotationModalOpen(false);
+          setSelectedProjectForQuotation(null);
+        }}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => {
+              setQuotationModalOpen(false);
+              setSelectedProjectForQuotation(null);
+            }}>
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (selectedProjectForQuotation) {
+                  navigate(`/projects/${selectedProjectForQuotation.id}/quotation`);
+                  setQuotationModalOpen(false);
+                  setSelectedProjectForQuotation(null);
+                }
+              }}
+              disabled={!selectedProjectForQuotation}
+            >
+              Tạo báo giá
+            </Button>
+          </>
+        }
+      >
+        <div>
+          <p style={{ marginBottom: '16px', color: '#666' }}>
+            Vui lòng chọn dự án để tạo báo giá:
+          </p>
+          <ul className={styles.list}>
+            {projects.map((p) => (
+              <li
+                key={p.id}
+                className={styles.listItem}
+                style={{
+                  cursor: 'pointer',
+                  backgroundColor: selectedProjectForQuotation?.id === p.id ? '#e3f2fd' : 'transparent',
+                  padding: '12px',
+                  borderRadius: '4px',
+                  marginBottom: '8px',
+                }}
+                onClick={() => setSelectedProjectForQuotation(p)}
+              >
+                <span>{p.name ?? p.id}</span>
+                {selectedProjectForQuotation?.id === p.id && (
+                  <span style={{ color: '#0066cc', marginLeft: '8px' }}>✓</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       </Modal>
     </div>
   );
