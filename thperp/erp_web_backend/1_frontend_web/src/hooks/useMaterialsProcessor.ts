@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { httpsCallable, getFunctions } from 'firebase/functions';
 import app from '../services/firebaseClient';
-import { fetchGoogleDriveExcelFiles, findOrCreateFolder } from '../services/googleDriveService';
+import { fetchGoogleDriveExcelFiles } from '../services/googleDriveService';
 
 export interface Material {
   stt?: string;
@@ -179,53 +179,52 @@ export const useMaterialsProcessor = (project: Project | null) => {
   );
 
   /**
-   * 从 Google Drive 导入物料
+   * 从 Google Drive 导入物料 - 只从项目根文件夹读取
    */
   const handleImportFromGoogleDrive = useCallback(
-    async (accessToken: string) => {
+    async (accessToken: string, getNewToken?: () => Promise<string>) => {
       setIsGoogleDriveLoading(true);
+      setIsLoadingFiles(true);
       try {
         if (!accessToken) {
-          throw new Error('无法获取 access token。');
+          throw new Error('Không thể lấy được access token. Vui lòng đăng nhập lại.');
         }
 
-        // 检查是否有项目信息和 Drive 文件夹 ID
-        if (project && project.driveFolderId) {
-          // 1) 在项目根目录中查找或创建子文件夹 "Thống kê vật tư"
-          const statsFolder = await findOrCreateFolder(
-            accessToken,
-            'Thống kê vật tư',
-            project.driveFolderId
-          );
+        // Kiểm tra project và driveFolderId
+        if (!project || !project.id) {
+          throw new Error('Không tìm thấy thông tin dự án. Vui lòng thử lại.');
+        }
 
-          // 2) 从该文件夹列出最新的 Excel 文件
-          const files = await fetchGoogleDriveExcelFiles(
-            accessToken,
-            statsFolder.id
+        // Nếu chưa có driveFolderId, cần tạo folder trước
+        let folderId = project.driveFolderId;
+        if (!folderId) {
+          throw new Error(
+            'Thư mục Google Drive của dự án chưa được tạo. Vui lòng vào trang chi tiết dự án để tạo thư mục trước.'
           );
-          if (files && files.length > 0) {
-            setDriveFiles(files);
-            setIsPickerVisible(true);
-          } else {
-            throw new Error(
-              '在此项目的文件夹中未找到任何 Excel 文件。请先将 Excel 文件上传到项目文件夹。'
-            );
-          }
+        }
+
+        // Chỉ lấy file Excel từ root folder của project (KHÔNG tìm toàn bộ Drive)
+        // Truyền callback để refresh token nếu gặp 401
+        const files = await fetchGoogleDriveExcelFiles(
+          accessToken, 
+          folderId,
+          getNewToken // Callback để refresh token khi 401
+        );
+        
+        if (files && files.length > 0) {
+          setDriveFiles(files);
+          setIsPickerVisible(true);
         } else {
-          // 回退到搜索整个 Drive（如果没有项目文件夹 ID）
-          const files = await fetchGoogleDriveExcelFiles(accessToken, null);
-          if (files && files.length > 0) {
-            setDriveFiles(files);
-            setIsPickerVisible(true);
-          } else {
-            throw new Error('在您的 Google Drive 中未找到任何 Excel 文件。');
-          }
+          throw new Error(
+            `Không tìm thấy file Excel nào trong thư mục gốc của dự án "${project.name || project.id}". Vui lòng upload file Excel vào thư mục dự án trên Google Drive trước.`
+          );
         }
       } catch (error: any) {
-        console.error('操作 Google Drive 时出错:', error);
+        console.error('Lỗi khi thao tác với Google Drive:', error);
         throw error;
       } finally {
         setIsGoogleDriveLoading(false);
+        setIsLoadingFiles(false);
       }
     },
     [project]

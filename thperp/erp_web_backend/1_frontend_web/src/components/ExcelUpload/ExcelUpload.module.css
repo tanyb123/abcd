@@ -1,0 +1,110 @@
+.uploadContainer {
+  width: 100%;
+}
+
+.dropZone {
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  padding: 40px 20px;
+  text-align: center;
+  background: #fafafa;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.dropZone:hover {
+  border-color: #0066cc;
+  background: #f0f7ff;
+}
+
+.dropZone.dragging {
+  border-color: #0066cc;
+  background: #e6f3ff;
+  border-style: solid;
+}
+
+.dropZone.uploading {
+  border-color: #0066cc;
+  background: #f0f7ff;
+  cursor: not-allowed;
+}
+
+.icon {
+  color: #666;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.dropZone.dragging .icon,
+.dropZone:hover .icon {
+  color: #0066cc;
+}
+
+.instruction {
+  font-size: 16px;
+  color: #333;
+  margin: 0 0 8px 0;
+}
+
+.browseLink {
+  color: #0066cc;
+  cursor: pointer;
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+.browseLink:hover {
+  color: #0052a3;
+}
+
+.fileInput {
+  display: none;
+}
+
+.hint {
+  font-size: 14px;
+  color: #888;
+  margin: 0;
+}
+
+.uploadingContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #0066cc;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.progressBar {
+  width: 100%;
+  max-width: 300px;
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: #0066cc;
+  transition: width 0.3s ease;
+}
+

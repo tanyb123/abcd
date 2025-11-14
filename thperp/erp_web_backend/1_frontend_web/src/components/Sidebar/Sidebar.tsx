@@ -46,6 +46,14 @@ function Sidebar() {
           <span className={styles.dot} />
           <span className={styles.linkLabel}>Dashboard</span>
         </NavLink>
+        <NavLink
+          to="/settings/email"
+          title="Cài đặt Email"
+          className={({ isActive }) => [styles.link, isActive ? styles.active : undefined].join(' ')}
+        >
+          <span className={styles.dot} />
+          <span className={styles.linkLabel}>Cài đặt Email</span>
+        </NavLink>
       </nav>
       
       {!collapsed && currentUser && (

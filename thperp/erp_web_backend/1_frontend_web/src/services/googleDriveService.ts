@@ -56,7 +56,8 @@ export const listFiles = async (
  */
 export const fetchGoogleDriveExcelFiles = async (
   accessToken: string,
-  folderId: string | null = null
+  folderId: string | null = null,
+  onTokenExpired?: () => Promise<string> // Callback để refresh token khi 401
 ): Promise<GoogleDriveFile[]> => {
   try {
     const baseUrl = 'https://www.googleapis.com/drive/v3/files';
@@ -73,19 +74,50 @@ export const fetchGoogleDriveExcelFiles = async (
     params.append('fields', 'files(id, name, modifiedTime, iconLink)');
     const url = `${baseUrl}?${params.toString()}`;
 
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+    let tokenToUse = accessToken;
+    let response = await fetch(url, {
+      headers: { Authorization: `Bearer ${tokenToUse}` },
     });
 
+    // Nếu gặp lỗi 401 và có callback refresh token, thử refresh
+    if (response.status === 401 && onTokenExpired) {
+      console.log('Token hết hạn, đang refresh token...');
+      try {
+        tokenToUse = await onTokenExpired();
+        // Thử lại với token mới
+        response = await fetch(url, {
+          headers: { Authorization: `Bearer ${tokenToUse}` },
+        });
+      } catch (refreshError) {
+        console.error('Lỗi khi refresh token:', refreshError);
+        throw new Error('Token đã hết hạn và không thể refresh. Vui lòng đăng nhập lại bằng Google.');
+      }
+    }
+
     if (!response.ok) {
-      throw new Error(`Lỗi Google Drive API: ${response.status}`);
+      const errorText = await response.text();
+      console.error('Google Drive API Error:', response.status, errorText);
+      
+      if (response.status === 401) {
+        throw new Error('Token Google Drive đã hết hạn. Vui lòng đăng nhập lại bằng Google.');
+      } else if (response.status === 403) {
+        throw new Error('Không có quyền truy cập Google Drive. Vui lòng cấp quyền khi đăng nhập.');
+      } else if (response.status === 404) {
+        throw new Error('Không tìm thấy thư mục dự án trên Google Drive.');
+      } else {
+        throw new Error(`Lỗi Google Drive API: ${response.status}. ${errorText}`);
+      }
     }
 
     const json = await response.json();
     return json.files || [];
-  } catch (error) {
+  } catch (error: any) {
     console.error('Lỗi khi lấy file Excel từ Google Drive:', error);
-    throw error;
+    // Nếu error đã có message, throw lại; nếu không, tạo message mới
+    if (error.message) {
+      throw error;
+    }
+    throw new Error(`Lỗi khi lấy file Excel từ Google Drive: ${error}`);
   }
 };
 
@@ -188,6 +220,59 @@ export const findOrCreateFolder = async (
     };
   } catch (error) {
     console.error('Lỗi khi tìm hoặc tạo thư mục:', error);
+    throw error;
+  }
+};
+
+/**
+ * Upload file lên Google Drive
+ * @param accessToken - Token xác thực Google
+ * @param file - File cần upload
+ * @param folderId - ID thư mục đích (tùy chọn)
+ * @returns Thông tin file đã upload
+ */
+export const uploadFile = async (
+  accessToken: string,
+  file: File,
+  folderId: string | null = null
+): Promise<{ id: string; name: string; webViewLink?: string }> => {
+  try {
+    // Tạo metadata
+    const metadata: any = {
+      name: file.name,
+    };
+
+    if (folderId) {
+      metadata.parents = [folderId];
+    }
+
+    // Tạo form data
+    const formData = new FormData();
+    formData.append(
+      'metadata',
+      new Blob([JSON.stringify(metadata)], { type: 'application/json' })
+    );
+    formData.append('file', file);
+
+    // Upload file
+    const response = await axios.post(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink',
+      formData,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+
+    return {
+      id: response.data.id,
+      name: response.data.name,
+      webViewLink: response.data.webViewLink,
+    };
+  } catch (error) {
+    console.error('Lỗi khi upload file lên Google Drive:', error);
     throw error;
   }
 };

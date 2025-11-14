@@ -124,6 +124,7 @@ const FinalizeQuotationPage = () => {
     subTotal: routeSubTotal,
     projectName: routeProjectName,
     customerData: routeCustomerData,
+    isManualQuotation: routeIsManualQuotation,
   } = location.state || {};
 
   const [materials] = useState(routeMaterials || []);
@@ -241,6 +242,8 @@ const FinalizeQuotationPage = () => {
         quoteValidity: `${quoteValidity} ngày`,
         deliveryTime,
         createdBy: user.uid,
+        isManualQuotation: routeIsManualQuotation || false,
+        source: routeIsManualQuotation ? 'manual' : 'excel',
       };
 
       await generateExcelQuotation(quotationData, token);

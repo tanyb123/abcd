@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMaterialsProcessor } from '../../hooks/useMaterialsProcessor';
 import { getQuotationsByProject } from '../../services/quotationService';
+import { getProject, createProjectFolders } from '../../services/projectService';
 import { GoogleDriveFile } from '../../services/googleDriveService';
 import Button from '../../components/Button/Button';
 import Modal from '../../components/Modal/Modal';
@@ -54,17 +55,32 @@ const QuotationPage = () => {
       if (!projectId) return;
 
       try {
-        // TODO: Tải thông tin dự án từ Firestore
-        // const projectDoc = await getDoc(doc(db, 'projects', projectId));
-        // if (projectDoc.exists()) {
-        //   setProject({ id: projectId, ...projectDoc.data() } as Project);
-        // }
-
-        // Tạm thời thiết lập thông tin dự án
-        setProject({
-          id: projectId,
-          name: 'Dự án mẫu',
-        });
+        // Tải thông tin dự án từ Firestore
+        const projectData = await getProject(projectId);
+        if (projectData) {
+          // Nếu chưa có driveFolderId, tự động tạo folder
+          if (!projectData.driveFolderId) {
+            try {
+              const folders = await createProjectFolders(projectId);
+              setProject({
+                ...projectData,
+                driveFolderId: folders.driveFolderId,
+                driveFolderUrl: folders.driveFolderUrl,
+              } as Project);
+            } catch (folderError) {
+              console.error('Lỗi khi tạo folder:', folderError);
+              // Vẫn set project dù không tạo được folder
+              setProject(projectData as Project);
+            }
+          } else {
+            setProject(projectData as Project);
+          }
+        } else {
+          setProject({
+            id: projectId,
+            name: 'Dự án không tìm thấy',
+          });
+        }
 
         // Tải lịch sử báo giá
         const pastQuotations = await getQuotationsByProject(projectId);
@@ -112,10 +128,34 @@ const QuotationPage = () => {
         setAccessToken(token);
       }
       
-      await handleImportFromGoogleDrive(token);
+      // Truyền callback để refresh token nếu gặp 401
+      await handleImportFromGoogleDrive(token, async () => {
+        // Callback để refresh token khi gặp 401
+        const newToken = await getGoogleAccessToken();
+        setAccessToken(newToken);
+        return newToken;
+      });
     } catch (error: any) {
-      if (error.message.includes('đăng nhập')) {
-        alert('Vui lòng đăng nhập Google trước. Nhấp vào nút "Đăng nhập với Google" trên trang đăng nhập.');
+      if (error.message.includes('đăng nhập') || error.message.includes('Token')) {
+        // Nếu lỗi về token, yêu cầu đăng nhập lại
+        const shouldRetry = confirm(
+          'Token Google Drive đã hết hạn. Bạn có muốn đăng nhập lại bằng Google không?'
+        );
+        if (shouldRetry) {
+          try {
+            await signInWithGoogle();
+            // Sau khi đăng nhập lại, thử lại
+            const newToken = await getGoogleAccessToken();
+            setAccessToken(newToken);
+            await handleImportFromGoogleDrive(newToken, async () => {
+              const refreshedToken = await getGoogleAccessToken();
+              setAccessToken(refreshedToken);
+              return refreshedToken;
+            });
+          } catch (retryError: any) {
+            alert(`Nhập dữ liệu thất bại: ${retryError.message}`);
+          }
+        }
       } else {
         alert(`Nhập dữ liệu thất bại: ${error.message}`);
       }

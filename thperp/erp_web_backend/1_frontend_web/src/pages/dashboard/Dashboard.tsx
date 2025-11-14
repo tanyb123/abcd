@@ -37,6 +37,7 @@ function DashboardPage() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [quotationModalOpen, setQuotationModalOpen] = useState(false);
   const [selectedProjectForQuotation, setSelectedProjectForQuotation] = useState<RecentItem | null>(null);
+  const [isManualQuotation, setIsManualQuotation] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,11 +107,31 @@ function DashboardPage() {
                 navigate(`/projects/${projects[0].id}/quotation`);
               } else {
                 // Nếu có nhiều dự án, hiển thị modal để chọn
+                setIsManualQuotation(false);
                 setQuotationModalOpen(true);
               }
             }}
           >
-            Tạo báo giá
+            Tạo báo giá (từ Excel)
+          </Button>
+          <Button 
+            variant="secondary" 
+            onClick={() => {
+              if (projects.length === 0) {
+                alert('Vui lòng tạo dự án trước khi tạo báo giá!');
+                setCreateOpen(true);
+              } else if (projects.length === 1) {
+                // Nếu chỉ có 1 dự án, trực tiếp đi đến trang báo giá manual
+                navigate(`/projects/${projects[0].id}/quotation/manual`);
+              } else {
+                // Nếu có nhiều dự án, hiển thị modal để chọn
+                setSelectedProjectForQuotation(null);
+                setIsManualQuotation(true);
+                setQuotationModalOpen(true);
+              }
+            }}
+          >
+            Tạo báo giá thủ công
           </Button>
           <Button variant="success">Tạo lệnh SX</Button>
           <Button variant="ghost">Xuất báo cáo</Button>
@@ -143,12 +164,19 @@ function DashboardPage() {
                   <span 
                     className={styles.rowName}
                     style={{ cursor: 'pointer', textDecoration: 'underline' }}
-                    onClick={() => navigate(`/projects/${p.id}/quotation`)}
-                    title="Nhấp để tạo báo giá"
+                    onClick={() => navigate(`/projects/${p.id}`)}
+                    title="Nhấp để xem chi tiết dự án"
                   >
                     {p.name ?? p.id}
                   </span>
                   <span className={styles.rowActions}>
+                    <Button
+                      className={styles.smallBtn}
+                      variant="ghost"
+                      onClick={() => navigate(`/projects/${p.id}`)}
+                    >
+                      Chi tiết
+                    </Button>
                     <Button
                       className={styles.smallBtn}
                       variant="primary"
@@ -301,16 +329,18 @@ function DashboardPage() {
       {/* Modal chọn dự án để tạo báo giá */}
       <Modal
         open={quotationModalOpen}
-        title="Chọn dự án để tạo báo giá"
+        title={isManualQuotation ? "Chọn dự án để tạo báo giá thủ công" : "Chọn dự án để tạo báo giá"}
         onClose={() => {
           setQuotationModalOpen(false);
           setSelectedProjectForQuotation(null);
+          setIsManualQuotation(false);
         }}
         footer={
           <>
             <Button variant="ghost" onClick={() => {
               setQuotationModalOpen(false);
               setSelectedProjectForQuotation(null);
+              setIsManualQuotation(false);
             }}>
               Hủy
             </Button>
@@ -318,14 +348,18 @@ function DashboardPage() {
               variant="primary"
               onClick={() => {
                 if (selectedProjectForQuotation) {
-                  navigate(`/projects/${selectedProjectForQuotation.id}/quotation`);
+                  const path = isManualQuotation
+                    ? `/projects/${selectedProjectForQuotation.id}/quotation/manual`
+                    : `/projects/${selectedProjectForQuotation.id}/quotation`;
+                  navigate(path);
                   setQuotationModalOpen(false);
                   setSelectedProjectForQuotation(null);
+                  setIsManualQuotation(false);
                 }
               }}
               disabled={!selectedProjectForQuotation}
             >
-              Tạo báo giá
+              {isManualQuotation ? "Tạo báo giá thủ công" : "Tạo báo giá"}
             </Button>
           </>
         }
